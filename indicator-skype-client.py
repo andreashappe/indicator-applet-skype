@@ -65,6 +65,8 @@ class UnreadConversation:
     if not timestamp in self.timestamps:
       self.timestamps.add(timestamp)
       self.count += 1
+    else:
+      show()
 
   def skype_id_for(cls, display_name):
     return UnreadConversation.name_mappings[display_name]
@@ -108,7 +110,6 @@ def add_message(mesg):
     unread_conversations[display_name].show()
   else:
     unread_conversations[display_name].add(mesg.Timestamp)
-    unread_conversations[display_name].show()
 
 # this is called when somebody clicks upon the 'skype' entry
 def server_display(server):
@@ -149,7 +150,7 @@ def OnMessageStatus(mesg, Status):
   print 'message status\n'
 
   if Status == 'RECEIVED':
-    print(Message.FromDisplayName + "sent a message")
+    print(mesg.FromDisplayName + "sent a message")
     add_message(mesg)
 
 if __name__ == "__main__":
