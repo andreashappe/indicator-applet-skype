@@ -35,21 +35,80 @@ import Skype4Py
 
 from time import time
 
-name_sender = {}
-
-unread_messages = {}
+unread_conversations = {}
 
 # this is called, when somebody clicks upon one 'unread message'
 # entry
 def display(indicator):
-    global name_sender
-    global unread_messages
+    global unread_conversations
 
+    # TODO move this into a class method?
     display_name = indicator.get_property("name")
-    skype_name = name_sender[display_name].Handle
+    skype_name = UnreadConversation.skype_id_for(display_name)
 
-    del unread_messages[display_name]
+    del unread_conversations[display_name]
     skype.Client.OpenMessageDialog(skype_name);
+
+def do_nothing(indicator):
+    True
+
+class UnreadConversation:
+  name_mappings = {}
+
+  def __init__(self, display_name, timestamp, skype_id):
+    self.display_name = display_name
+    self.count = 0
+    self.timestamps = [timestamp]
+    UnreadConversation.name_mappings[self.display_name] = skype_id
+
+  def add(self, timestamp):
+    if not timestamp in self.timestamps:
+      self.timestamps.add(timestamp)
+      self.count += 1
+
+  def skype_id_for(cls, display_name):
+    return UnreadConversation.name_mappings[display_name]
+
+  skype_id_for = classmethod(skype_id_for)
+
+  def show(self):
+    print "adding " + self.display_name
+
+    try:
+      # Ubuntu 9.10 and above
+      indicator = indicate.Indicator()
+    except:
+      # Ubuntu 9.04
+      indicator = indicate.IndicatorMessage()
+
+    indicator.set_property("name", self.display_name)
+    indicator.set_property("subtype", "instant")
+    indicator.set_property('draw-attention', 'true');
+
+    # we can only display timestamp OR count
+    if self.count == 1:
+      indicator.set_property_time("time", self.timestamp)
+    else:
+      indicator.set_property('count', str(self.count));
+    indicator.connect("user-display", display)
+    indicator.show()
+
+    # TODO: why?
+    gobject.timeout_add_seconds(5, do_nothing, indicator)
+
+def add_message(mesg):
+  global unread_conversations
+
+  display_name = mesg.FromDisplayName
+
+  if not display_name in unread_conversations:
+    conversation = UnreadConversation(display_name, mesg.Timestamp, mesg.Sender.Handle)
+    # TODO: should we do some sort of update for this?
+    unread_conversations[display_name] = conversation
+    unread_conversations[display_name].show()
+  else:
+    unread_conversations[display_name].add(mesg.Timestamp)
+    unread_conversations[display_name].show()
 
 # this is called when somebody clicks upon the 'skype' entry
 def server_display(server):
@@ -66,56 +125,13 @@ def OnAttach(status):
 # TODO: also remove messages that have been read through skype, otherwise
 #       they would stay until somebody clicks them in the indicator-applet
 def timeout_check(server):
-  global unread_messages
-
+  global unread_conversations
   print "timeout?\n"
 
   for mesg in skype.MissedMessages:
-    if not mesg.FromDisplayName in unread_messages:
-      unread_messages[mesg.FromDisplayName] = {}
-      unread_messages[mesg.FromDisplayName]['count'] = 0
-
-    # TODO am I overwriting the timestamp? shouldn't I just use the last one?
-    # TODO 'ts' and 'count' are mutual exclusive? what is better?
-    unread_messages[mesg.FromDisplayName]['ts'] = mesg.Timestamp
-    unread_messages[mesg.FromDisplayName]['count'] += 1
-    unread_messages[mesg.FromDisplayName]['sender'] = mesg.Sender
-
-  for key in unread_messages:
-    entry = unread_messages[key]
-    add_notification(key, entry['sender'], entry['ts'], entry['count'])
+    add_message(mesg)
 
   return True
-
-def do_nothing(indicator):
-    True
-
-def add_notification(display_name, Sender, timestamp, count):
-    global name_sender
-
-    print "adding " + display_name
-
-    try:
-      # Ubuntu 9.10 and above
-      indicator = indicate.Indicator()
-    except:
-      indicator = indicate.IndicatorMessage()
-
-    indicator.set_property("name", display_name)
-    name_sender[display_name] = Sender
-    indicator.set_property("subtype", "instant")
-    indicator.set_property('draw-attention', 'true');
-
-    # we can only display timestamp OR count
-    if count == 1:
-      indicator.set_property_time("time", timestamp)
-    else:
-      indicator.set_property('count', str(count));
-    indicator.connect("user-display", display)
-    indicator.show()
-
-    # TODO: why?
-    gobject.timeout_add_seconds(5, do_nothing, indicator)
 
 # this is needed, cause otherwise the skype menu is only showed
 # when there are new unread messages.. another workaround
@@ -128,20 +144,13 @@ def workaround_show_skype():
     
 
 def OnMessageStatus(mesg, Status):
-  global unread_messages
+  global unread_conversations
 
   print 'message status\n'
 
   if Status == 'RECEIVED':
     print(Message.FromDisplayName + "sent a message")
-    if not mesg.FromDisplayName in unread_messages:
-      unread_messages[mesg.FromDisplayName] = {}
-      unread_messages[mesg.FromDisplayName]['count'] = 0
-      unread_messages[mesg.FromDisplayName]['ts'] = mesg.Timestamp
-    else:
-      unread_messages[mesg.FromDisplayName]['count'] += 1
-
-    add_notification(mesg.FromDisplayName, mesg.Sender, mesg.Timestamp, unread_messages[mesg.FromDisplayName]['count'])
+    add_message(mesg)
 
 if __name__ == "__main__":
     server = indicate.indicate_server_ref_default()
