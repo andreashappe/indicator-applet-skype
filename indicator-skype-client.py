@@ -52,7 +52,7 @@ def OnAttach(status):
         skype.Attach();
 
     if status == Skype4Py.apiAttachSuccess:
-        print 'success!'
+        print 'connected to skype!'
 
 def timeout_check(server):
     print "timeout?\n"
@@ -88,6 +88,16 @@ def add_notification(display_name, Sender, timestamp):
     # TODO: why?
     gobject.timeout_add_seconds(5, do_nothing, indicator)
 
+# this is needed, cause otherwise the skype menu is only showed
+# when there are new unread messages.. another workaround
+def workaround_show_skype():
+  indicator = indicate.Indicator()
+  indicator.set_property("name", "workaround..")
+  indicator.connect("user-display", display)
+  indicator.show()
+  indicator.hide()
+    
+
 def OnMessageStatus(Message, Status):
     print 'message status\n'
 
@@ -100,7 +110,9 @@ if __name__ == "__main__":
     server.set_type("message.im")
     server.set_desktop_file("/usr/share/applications/skype.desktop")
     server.connect("server-display", server_display)
-    
+
+    workaround_show_skype()
+
     # why is this needed?
     gobject.timeout_add_seconds(5, timeout_check, server)
 
