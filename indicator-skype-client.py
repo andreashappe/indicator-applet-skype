@@ -77,10 +77,16 @@ def add_notification(display_name, Sender, timestamp):
 
     print "adding " + display_name
 
-    indicator = indicate.Indicator()
+    try:
+      # Ubuntu 9.10 and above
+      indicator = indicate.Indicator()
+    except:
+      indicator = indicate.IndicatorMessage()
+
     indicator.set_property("name", display_name)
     name_sender[display_name] = Sender
     indicator.set_property_time("time", timestamp)
+    indicator.set_property("subtype", "instant")
     indicator.set_property('draw-attention', 'true');
     indicator.connect("user-display", display)
     indicator.show()
