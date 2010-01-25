@@ -37,13 +37,21 @@ from time import time
 
 name_sender = {}
 
+unread_messages = {}
+
+# this is called, when somebody clicks upon one 'unread message'
+# entry
 def display(indicator):
     global name_sender
+    global unread_messages
 
     display_name = indicator.get_property("name")
     skype_name = name_sender[display_name].Handle
+
+    del unread_messages[display_name]
     skype.Client.OpenMessageDialog(skype_name);
 
+# this is called when somebody clicks upon the 'skype' entry
 def server_display(server):
     skype.Client.Focus();
 
@@ -54,25 +62,35 @@ def OnAttach(status):
     if status == Skype4Py.apiAttachSuccess:
         print 'connected to skype!'
 
+# update unread message collection
+# TODO: also remove messages that have been read through skype, otherwise
+#       they would stay until somebody clicks them in the indicator-applet
 def timeout_check(server):
-    print "timeout?\n"
+  global unread_messages
 
-    unread = {}
-    global name_sender
+  print "timeout?\n"
 
-    for mesg in skype.MissedMessages:
-        # TODO am I overwriting the timestamp? shouldn't I just use the last one?
-        unread[mesg.FromDisplayName] = mesg.Timestamp
+  for mesg in skype.MissedMessages:
+    if not mesg.FromDisplayName in unread_messages:
+      unread_messages[mesg.FromDisplayName] = {}
+      unread_messages[mesg.FromDisplayName]['count'] = 0
 
-    for key in unread:
-        add_notification(key, mesg.Sender, unread[key])
+    # TODO am I overwriting the timestamp? shouldn't I just use the last one?
+    # TODO 'ts' and 'count' are mutual exclusive? what is better?
+    unread_messages[mesg.FromDisplayName]['ts'] = mesg.Timestamp
+    unread_messages[mesg.FromDisplayName]['count'] += 1
+    unread_messages[mesg.FromDisplayName]['sender'] = mesg.Sender
 
-    return True
+  for key in unread_messages:
+    entry = unread_messages[key]
+    add_notification(key, entry['sender'], entry['ts'], entry['count'])
+
+  return True
 
 def do_nothing(indicator):
     True
 
-def add_notification(display_name, Sender, timestamp):
+def add_notification(display_name, Sender, timestamp, count):
     global name_sender
 
     print "adding " + display_name
@@ -85,9 +103,14 @@ def add_notification(display_name, Sender, timestamp):
 
     indicator.set_property("name", display_name)
     name_sender[display_name] = Sender
-    indicator.set_property_time("time", timestamp)
     indicator.set_property("subtype", "instant")
     indicator.set_property('draw-attention', 'true');
+
+    # we can only display timestamp OR count
+    if count == 1:
+      indicator.set_property_time("time", timestamp)
+    else:
+      indicator.set_property('count', str(count));
     indicator.connect("user-display", display)
     indicator.show()
 
@@ -104,12 +127,21 @@ def workaround_show_skype():
   indicator.hide()
     
 
-def OnMessageStatus(Message, Status):
-    print 'message status\n'
+def OnMessageStatus(mesg, Status):
+  global unread_messages
 
-    if Status == 'RECEIVED':
-        print(Message.FromDisplayName + "sent a message")
-        add_notification(Message.FromDisplayName, Message.Sender, Message.Timestamp)
+  print 'message status\n'
+
+  if Status == 'RECEIVED':
+    print(Message.FromDisplayName + "sent a message")
+    if not mesg.FromDisplayName in unread_messages:
+      unread_messages[mesg.FromDisplayName] = {}
+      unread_messages[mesg.FromDisplayName]['count'] = 0
+      unread_messages[mesg.FromDisplayName]['ts'] = mesg.Timestamp
+    else:
+      unread_messages[mesg.FromDisplayName]['count'] += 1
+
+    add_notification(mesg.FromDisplayName, mesg.Sender, mesg.Timestamp, unread_messages[mesg.FromDisplayName]['count'])
 
 if __name__ == "__main__":
     server = indicate.indicate_server_ref_default()
