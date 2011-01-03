@@ -45,14 +45,15 @@ class NotificationServer:
     self.server.set_type("message.im")
 #   this is kinda ugly, or?
     self.server.set_desktop_file("/usr/share/applications/skype.desktop")
+    self.server.show()
     pass
 
   def connect(self, skype):
     self.skype = skype
     self.server.connect("server-display", self.on_click)
 
-  def on_click(self, server):
-    self.skype.Client.Focus()
+  def on_click(self, server,data=None):
+    self.skype.skype.Client.Focus()
 
   def activate_timeout_check(self):
     gobject.timeout_add_seconds(5, self.skype.check_timeout, self.server)
@@ -106,10 +107,11 @@ class UnreadConversation:
     self.display_name = display_name
     self.count = 0
     self.timestamps = [timestamp]
+    self.timestamp=timestamp
 
   def add_timestamp(self, timestamp):
     if not timestamp in self.timestamps:
-      self.timestamps.add(timestamp)
+      self.timestamps.append(timestamp)
       self.count += 1
 
 
