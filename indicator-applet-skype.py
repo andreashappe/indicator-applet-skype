@@ -33,7 +33,9 @@ import gobject
 import gtk
 import Skype4Py
 
-from time import time
+import os
+import commands
+import time
 
 def do_nothing(indicator):
     True
@@ -188,6 +190,15 @@ class SkypeBehaviour:
 
 
 if __name__ == "__main__":
+	
+  output = commands.getoutput('ps -A | grep skype' )
+  if 'skype' in output:
+    print "Skype already running"
+  else:
+    print "Starting up Skype"
+    os.system("skype &")
+    print "Waiting 5 seconds..."
+    time.sleep(5)
 
   skype = SkypeBehaviour();
   server = NotificationServer()
